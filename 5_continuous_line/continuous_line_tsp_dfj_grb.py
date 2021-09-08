@@ -9,12 +9,11 @@ The model formulation is a TSP with "Dantzig–Fulkerson–Johnson" subtour elim
 import gurobipy as gp
 from gurobipy import GRB
 
-from itertools import combinations
-
+from itertools import permutations
 
 # region Input Data
-num_rows = 6
-num_cols = 6
+num_rows = 10
+num_cols = 10
 # holes
 H = [(1, 3), (2, 5), (4, 3), (4, 4), (5, 1), (5, 4), (5, 6), (6, 1), (6, 6)]
 
@@ -109,49 +108,37 @@ n = len(N)
 
 # Callback - use lazy constraints to eliminate sub-tours
 def subtourelim(model, where):
-    if where == 6:
-        return
-    print('Here1')
-    print(where)
-    print('but', GRB.Callback.MIPSOL)
     if where == GRB.Callback.MIPSOL:
-        # make a list of edges selected in the solution
         vals = model.cbGetSolution(model._vars)
-        selected = gp.tuplelist((i, j) for i, j in model._vars.keys()
-                                if vals[i, j] > 0.5)
-        # find the shortest cycle in the selected edge list
-        tour = subtour(selected)
-        print('Here2')
+        sol = {a[0]: a[1] for a in model._indexes if vals[a] > 0.5}
+        tour = subtour(sol)
         if n > len(tour) > 1:
-            # add subtour elimination constr. for every pair of cities in tour
-            model.cbLazy(gp.quicksum(model._vars[a] for a in tour) <= len(tour) - 1)
-            print('Here3')
+            nodes = [a[0] for a in tour]
+            model.cbLazy(gp.quicksum(model._vars[i,j] for i, j in permutations(nodes, 2)
+                                     if (i, j) in model._indexes) <= len(tour) - 1)
+            # model.cbLazy(gp.quicksum(model._vars[a] for a in tour) <= len(tour) - 1)
 
 
 # Given a tuplelist of edges, find the shortest subtour
-def subtour(edges):
-    unvisited = list(range(n))
-    cycle = range(n + 1)  # initial length has 1 more city
-    while unvisited:  # true if list is non-empty
-        thiscycle = []
-        neighbors = unvisited
-        while neighbors:
-            current = neighbors[0]
-            thiscycle.append(current)
-            unvisited.remove(current)
-            neighbors = [j for i, j in edges.select(current, '*')
-                         if j in unvisited]
-        if len(cycle) > len(thiscycle):
-            cycle = thiscycle
-    arc_cicles = []
-    for i in range(1, len(cycle)):
-        arc_cicles.append((cycle[i-1], cycle[i]))
-    arc_cicles.append((cycle[len(cycle)-1], cycle[0]))
-    return arc_cicles
+def subtour(sol):
+    init = None
+    for a in sol.keys():
+        init = sol[a]
+        break
+    next = sol[init]
+    arc_cycle = []
+    while next != init:
+        previous = next
+        next = sol[next]
+        arc_cycle.append((previous, next))
+
+    arc_cycle.append((arc_cycle[len(arc_cycle) - 1][1], arc_cycle[0][0]))
+    return arc_cycle
 
 
 mdl.Params.lazyConstraints = 1
 mdl._vars = x
+mdl._indexes = A
 
 # set the objective function
 mdl.setObjective(sum(x[a] for a in A))  # not really required for this problem
@@ -161,33 +148,20 @@ mdl.setObjective(sum(x[a] for a in A))  # not really required for this problem
 mdl.optimize(subtourelim)
 
 # retrieve and print out the solution
-# u_sol = {(node.cell.row, node.cell.col): int(round(u[node].X)) for node in N if node != dummy_node}
-# for i in range(1, num_rows + 1):
-#     row = [u_sol[i, j] if (i, j) in u_sol else 0 for j in range(1, num_cols + 1)]
-#     print(row)
-vals = mdl.getAttr('x', x)
-# print(vals)
-selected = gp.tuplelist((i, j) for i, j in vals.keys() if vals[i, j] > 0.5)
-# print(selected)
-
-tour = subtour(selected)
-# print(tour)
-assert len(tour) == n
-
-#
-# sol = {a[0]: a[1] for a in A if x[a].X == 1}
-# print(sol)
-# init = dummy_node
-# next = sol[init]
-# path = {next: 1}
-# k = 2
-# while next != dummy_node:
-#     next = sol[next]
-#     path[next] = k
-#     k += 1
-# print(path)
-# for i in range(1, num_rows + 1):
-#     row = [sol[(i, j)] if (i, j) not in H else 0 for j in range(1, num_cols + 1)]
-#     print(row)
+sol = {a[0]: a[1] for a in mdl._indexes if x[a].X > 0.5}
+tour = subtour(sol)
+path = {}
+for arc in tour:
+    path[(arc[0].cell.row, arc[0].cell.col)] = (arc[1].cell.row, arc[1].cell.col)
+sol = {}
+next_node = path[(0, 0)]
+k = 1
+while next_node != (0, 0):
+    sol[next_node] = k
+    next_node = path[next_node]
+    k += 1
+for i in range(1, num_rows + 1):
+    row = [sol[(i, j)] if (i, j) in sol else 0 for j in range(1, num_cols + 1)]
+    print(row)
 
 # endregion

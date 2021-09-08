@@ -10,8 +10,8 @@ import gurobipy as gp
 from gurobipy import GRB
 
 # region Input Data
-num_rows = 16
-num_cols = 16
+num_rows = 10
+num_cols = 10
 # holes
 H = [(1, 3), (2, 5), (4, 3), (4, 4), (5, 1), (5, 4), (5, 6), (6, 1), (6, 6)]
 

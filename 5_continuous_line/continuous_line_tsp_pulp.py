@@ -1,7 +1,7 @@
 """
 Solution to the Continuous Line.
 
-This version uses SCIP as a solver.
+This version uses Pulp as a solver.
 
 Created by Aster (Aug, 2021), MipMaster.org.
 """
