@@ -147,6 +147,8 @@ while tour_length < n:
     print(mdl)
 end_time = time.time()
 print('execution time', end_time-star_time)
+
+
 # retrieve and print out the solution
 tour = subtour(mdl)
 assert len(tour) == n
